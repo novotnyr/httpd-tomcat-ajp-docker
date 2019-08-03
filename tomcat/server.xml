@@ -8,7 +8,8 @@
 
   <Service name="Catalina">
     <Connector port="8009" protocol="AJP/1.3" />
-    <Engine name="Catalina" defaultHost="localhost">
+    <Engine name="Catalina" defaultHost="localhost" jvmRoute="${jvmRoute}">
+      <Realm className="org.apache.catalina.realm.MemoryRealm" />
       <Host name="localhost"  appBase="webapps"
             unpackWARs="true" autoDeploy="true">
         <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"

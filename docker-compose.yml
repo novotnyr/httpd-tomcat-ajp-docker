@@ -2,6 +2,12 @@ version: '3'
 services:
   tomcat:
     build: tomcat/.
+    environment:
+      - JAVA_OPTS="-DjvmRoute=tomcat1"
+  tomcat2:
+    build: tomcat/.
+    environment:
+      - JAVA_OPTS="-DjvmRoute=tomcat2"
   httpd:
     ports:
       - "19000:80"

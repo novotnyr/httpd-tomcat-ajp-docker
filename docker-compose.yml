@@ -1,0 +1,8 @@
+version: '3'
+services:
+  tomcat:
+    build: tomcat/.
+  httpd:
+    ports:
+      - "19000:80"
+    build: httpd/.

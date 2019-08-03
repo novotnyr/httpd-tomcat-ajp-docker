@@ -142,6 +142,19 @@ Since `catalina.sh` is able to pickup `JAVA_OPTS`, we use this mechanism to pass
 Useful commands
 =================
 
+## Reach Manager WebApplication
+
+We can reach the Tomcat Manager Webapp as follows
+
+    curl 'http://localhost:19000/manager/html/list' -u tomcat:s3cret
+
+- Credentials have to match `tomcat-users.xml`.
+- The response will contain a session ID. 
+
+To be more specific, we can extract the JSESSION ID:
+
+    curl -sv 'http://localhost:19000/manager/html/list' -u tomcat:s3cret | grep JSESSIONID
+
 ## Access the Load Balancer Manager
 
 The loadbalancer manager is available at:

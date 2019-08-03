@@ -4,7 +4,10 @@ What is this?
 One dockerized `httpd` loadbalances two dockerized Tomcats:
 
 - AJP is the loadbalancing protocol
-- `mod_proxy` does the loadbalancing on the `httpd` side
+- `mod_proxy` does the AJP proxying on the `httpd` side
+- `mod_proxy_balancer` handles the loadbalancing on the `httpd` side
+- Tomcat AJP connector handles the AJP protocol with `httpd`.
+- A `jvmRoute` is dynamically configured on the Tomcat side to provide sticky sessions.
 
 Details
 ========
@@ -15,25 +18,32 @@ Tomcat
 On Tomcat side, the following changes are made:
 
 - custom `server.xml` is provided. (See below)
+- a unique instance name is assigned to each Tomcat
+- optional ACL database is provided to access Tomcat Manager Webapp
+- optional IP-restrictions are lifted to access Tomcat Manager Webappp
 
 ### Configuration in `server.xml`
 
-A barebones Tomcat configuration is provided.
+Tomcat configuration is minimalistic:
 
 - a single Connector is exposed: AJP protocol on 8009
-- an optional `Realm` is declared to support authentification for `manager` Tomcat webapp. This is used to demo the sessions. This *realm* reads ACL information from `tomcat-users.xml`.
+- an optional `Realm` is declared to support authentification for `manager` Tomcat webapp. This is used to demo the HTTP sticky sessions. This *realm* reads ACL information from `tomcat-users.xml`. This is not necessary for production-scale deployments and for webapps that do not use Container-Based security.
 
 ### Loadbalancing Configuration via `jvmRoute`
 
 To implement *sticky sessions*, each Tomcat instance must declare a unique name. This identifier will be appended to the session ID header / query parameter / cookie.
 
-We declare a parameterizer *route*:
+Sample session ID will look as follows:
+
+    JSESSIONID=3FF62F97618CCBEE7D91FD462A6E095E.tomcat2
+
+We declare a parameterized *route*:
 
     jvmRoute="${jvmRoute}"
 
-Tomcat is able to resolve the parameterized values from Java System Properties (provideed by `-D` in the commandline).
+Tomcat is able to resolve the parameterized values from Java System Properties (provided by `-D` in the commandline).
 
-The actual values are provided in the `docker-compose.yml`.
+The actual values are provided in the `docker-compose.yml` (See below).
 
 ### Optional
 
@@ -72,8 +82,8 @@ Loadbalancing:
 
 - `mod_proxy_balancer`
 - `mod_status`: required by Balancer Manager Web UI
-- `mod_slotmem_shm`: low-level shared memory provided
-- `mod_lbmethod_byrequests`: provides *by requests* load balancin strategy
+- `mod_slotmem_shm`: low-level shared memory mechanism
+- `mod_lbmethod_byrequests`: provides *by requests* load balancing strategy
 
 ### Loadbalancing on `httpd`
 
@@ -84,7 +94,7 @@ We define a *tomcat* balancer with two members accessible via AJP protocol:
 
 The hostnames will be automatically resolved by Docker network established in the Docker Compose file.
 
-Please note that the balancer members to not included path suffixes. One proxy will loadbalance both mountpoints (*manager* and *root* webapps).
+Please note that balancer members do not include URL path suffixes. (This is handled by `ProxyPass` mountpoint declarations.) One proxy will loadbalance both mountpoints (*manager* and *root* webapps).
 
 ### Proxying and loadbalancing
 
@@ -98,8 +108,8 @@ The syntax is as follows:
 
     ProxyPass "/manager "balancer://tomcat/manager" stickysession=JSESSIONID|jsessionid scolonpathdelim=On
     
-- `manager`: We declare a mount point as a URL Suffix
-- `balancer://tomcat/manager` points to the loadbalancer. Please observe the URL suffix `/manager` that will be forwared to Tomcat. If this suffix is different than the mount point suffix, we need to declare `ReverseProxyPass` as well.
+- `manager`: We declare a mount point as a URL Suffix used by the `httpd`.
+- `balancer://tomcat/manager` points to the *tomcat* loadbalancer. The URL suffix `/manager` corresponds to Tomcat webapplication context path. If this context-path suffix is different than the mount point suffix, we need to declare `ReverseProxyPass` as well.
 - *sticky sessions*: Tomcat instance (worker) name will be attached to the Java Session ID. We declare cookie/header name according to Tomcat conventions.
 - *cookie/header format*. Java separates worker name from the session ID via nonstandard semicolon. We teach `httpd` to take that in mind via `scolonpathdelim`.
 
@@ -111,6 +121,16 @@ We declare three dockerized services:
 
 - `tomcat` and `tomcat2` represented loadbalanced Tomcats.
 - `httpd` representing a client-facing HTTP server. We remap the internal port to the `19000` for the host machine.
+
+### Host names and networking
+
+*Docker Compose* will create an internal network with three containers. Each container is able to reach all other components via hostname resolution. The actual hostname exactly matches the service name from the `docker-compose.yml`.
+
+As an example, the Tomcat container can ping `httpd` container via
+
+    ping httpd 
+
+The `httpd` is the hostname.
 
 ### Loadbalancing declarations
 
@@ -149,3 +169,19 @@ Let's check `httpd` availability from Tomcat.
     docker exec -it httpd-tomcat-docker_tomcat_1 ping httpd
     
 * Bear in mind that `exec` operates on running containers and `run` starts a brand new unnetworked container that is not aware of `docker-compose`-aware network.
+
+## List Docker Networks
+
+    docker network list
+    
+This command will show the network created for containers in the *Docker Compose*. 
+
+## Inspect a specific network
+
+This will show detailed info about a specific network `httpd-tomcat-docker_default`:
+
+    docker network inspect httpd-tomcat-docker_default    
+    
+Connected containers are provided as well.    
+    
+    
